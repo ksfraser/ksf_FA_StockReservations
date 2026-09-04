@@ -1,0 +1,46 @@
+{
+    "name": "ksfraser/ksf-fa-stock-reservations",
+    "description": "FrontAccounting Stock Reservations - prevents overselling by reserving stock for sales orders",
+    "type": "fa-module",
+    "license": "GPL-3.0",
+    "require": {
+        "php": ">=7.4",
+        "ksfraser/ksf-common-db": "^1.0",
+        "ksfraser/exceptions": "^1.0",
+        "ksfraser/traits": "^1.2",
+        "psr/log": "^1.1|^2.0|^3.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0",
+        "ksfraser/famock": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Ksfraser\\FrontAccounting\\StockReservations\\": "src/Ksfraser/FrontAccounting/StockReservations/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Ksfraser\\Tests\\FrontAccounting\\StockReservations\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "config": {
+        "platform": {
+            "php": "7.4.33"
+        }
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../ksf_common_db",
+            "canonical": false
+        },
+        {
+            "type": "path",
+            "url": "../../ksf_Infrastructure/Traits",
+            "canonical": false
+        }
+    ]
+}
