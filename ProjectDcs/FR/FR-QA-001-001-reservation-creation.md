@@ -51,16 +51,22 @@ When a sales order is confirmed or edited, the system SHALL reserve the ordered 
 │ for each line item       │
 └─────────────────────────┘
          │
-         ▼
-┌─────────────────────────┐
-│ Create Reservation(s)    │
-│ INSERT stock_reservations│
-└─────────────────────────┘
-         │
-         ▼
-┌─────────────────────────┐
-│ Update Order Status      │
-└─────────────────────────┘
+    ┌────┴────┐
+    │         │
+ ▼         ▼
+[Stock OK]  [Insufficient Stock]
+    │              │
+    ▼              ▼
+┌─────────────┐  ┌─────────────────────────┐
+│Create       │  │ Broadcast Hook:          │
+│Reservation  │  │ stock_reservation_      │
+│INSERT      │  │ insufficient            │
+└─────────────┘  └─────────────────────────┘
+                          │
+                          ▼
+                 ┌─────────────────────────┐
+                 │ Display Warning to User   │
+                 └─────────────────────────┘
 ```
 
 ### Acceptance Criteria
@@ -72,10 +78,11 @@ When a sales order is confirmed or edited, the system SHALL reserve the ordered 
 | AC-03 | Partial reservation when stock insufficient | UT-QA-001-001-003 |
 | AC-04 | Reservation uses correct status (reserved) | UT-QA-001-001-004 |
 | AC-05 | Transaction rollback on failure | UT-QA-001-001-005 |
+| AC-06 | Insufficient stock broadcasts hook | UT-QA-001-001-006 |
 
 ### Edge Cases
 
-1. **Insufficient stock**: Allow partial or reject based on config
+1. **Insufficient stock**: Broadcast `stock_reservation_insufficient` hook for other modules (e.g., SuggestedPO), display warning to user
 2. **Duplicate reservation**: Check existing before insert
 3. **Concurrent orders**: Use row-level locking
 4. **Zero quantity**: Skip reservation creation
@@ -83,5 +90,7 @@ When a sales order is confirmed or edited, the system SHALL reserve the ordered 
 ### Implementation Notes
 
 - Uses `ksfraser\ksf-common-db` for database abstraction
-- Integrates with `WorkflowHooksTrait` for lifecycle events
+- `SalesOrderReservationHandler` (SRP class) handles SO→reservation integration
+- Hook-based communication: `stock_reservation_insufficient` broadcast for other modules
 - FA adapter delegates to native `db_*` functions per architecture
+- Cart object is NEVER modified (read-only access)
