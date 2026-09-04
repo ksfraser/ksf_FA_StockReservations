@@ -38,15 +38,16 @@ class hooks_ksf_FA_StockReservations extends hooks
     {
         $this->install_extension($company, $force);
         add_security_section(SS_ksf_FA_StockReservations, 'Stock Reservations', 'SA_INVENTORY');
-        add_pagesecurity($page_security, 'SA_ksf_FA_StockReservations', ['SA_INVENTORY']);
         return true;
     }
 
     function deactivate_extension($company, $force = false)
     {
-        $prefix = get_company_preference($company)['_prefix'] ?? '0_';
-        $sql = "DROP TABLE IF EXISTS {$prefix}ksf_stock_reservations";
-        db_query($sql, "Cannot drop reservations table");
+        $uninstallFile = __DIR__ . '/sql/uninstall.sql';
+        if (file_exists($uninstallFile)) {
+            $sql = file_get_contents($uninstallFile);
+            run_db_import($sql, $company);
+        }
 
         remove_security_section(SS_ksf_FA_StockReservations);
         return parent::deactivate_extension($company, $force);
