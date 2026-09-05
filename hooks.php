@@ -8,12 +8,19 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
 }
 
 require_once __DIR__ . '/ComposerDependencies.php';
-\ksfraser\FrontAccounting\Common\Utils\ComposerDependencies::ensure(__DIR__);
 
 class hooks_ksf_FA_StockReservations extends hooks
 {
     var $module_name = 'ksf_FA_StockReservations';
     var $version = '2.4.19-1.0.0';
+
+    function install_extension($check_only=true)
+    {
+        if (!$check_only) {
+            \ksfraser\FrontAccounting\Common\Utils\ComposerDependencies::ensure(__DIR__);
+        }
+        return true;
+    }
 
     function activate_extension($company, $check_only=true)
     {
