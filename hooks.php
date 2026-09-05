@@ -3,54 +3,36 @@ declare(strict_types=1);
 
 define('SS_ksf_FA_StockReservations', 145 << 8);
 
+if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+    require_once __DIR__ . '/vendor/autoload.php';
+}
+
+require_once __DIR__ . '/ComposerDependencies.php';
+\ksfraser\FrontAccounting\Common\Utils\ComposerDependencies::ensure(__DIR__);
+
 class hooks_ksf_FA_StockReservations extends hooks
 {
     var $module_name = 'ksf_FA_StockReservations';
     var $version = '2.4.19-1.0.0';
 
-    function install_extension($company, $force = false)
+    function activate_extension($company, $check_only=true)
     {
-        parent::install_extension($company, $force);
-
-        $autoload = __DIR__ . '/vendor/autoload.php';
-        if (!file_exists($autoload)) {
-            return false;
-        }
-        require_once $autoload;
-
-        $updates = [
-            'sql/install.sql' => '0_ksf_stock_reservations',
-        ];
-
-        foreach ($updates as $file => $table) {
-            $sqlFile = __DIR__ . '/' . $file;
-            if (file_exists($sqlFile)) {
-                $sql = file_get_contents($sqlFile);
-                $sql = str_replace('0_', get_company_preference($company)['_prefix'], $sql);
-                run_db_import($sql, $company);
-            }
+        if (!file_exists(dirname(__FILE__) . '/sql/install.sql')) {
+            return true;
         }
 
-        return true;
+        $updates = array(
+            'sql/install.sql' => array(
+                '0_ksf_stock_reservations',
+            ),
+        );
+
+        return $this->update_databases($company, $updates, $check_only);
     }
 
-    function activate_extension($company, $force = false)
+    function deactivate_extension($company, $check_only=true)
     {
-        $this->install_extension($company, $force);
-        add_security_section(SS_ksf_FA_StockReservations, 'Stock Reservations', 'SA_INVENTORY');
         return true;
-    }
-
-    function deactivate_extension($company, $force = false)
-    {
-        $uninstallFile = __DIR__ . '/sql/uninstall.sql';
-        if (file_exists($uninstallFile)) {
-            $sql = file_get_contents($uninstallFile);
-            run_db_import($sql, $company);
-        }
-
-        remove_security_section(SS_ksf_FA_StockReservations);
-        return parent::deactivate_extension($company, $force);
     }
 
     function getModuleConstants(&$data, $opts = [])
@@ -73,82 +55,66 @@ class hooks_ksf_FA_StockReservations extends hooks
         return $data;
     }
 
-    function hook_invoke_all($hook, &$data)
+    public function hasCapability(&$data, $opts = null)
     {
-        $autoload = __DIR__ . '/vendor/autoload.php';
-        if (!file_exists($autoload)) {
-            return null;
+        $capability = isset($opts['capability']) ? $opts['capability'] : (isset($data['capability']) ? $data['capability'] : null);
+        if ($capability === null) {
+            $data['has_capability'] = false;
+            return false;
         }
-        require_once $autoload;
-
-        return parent::hook_invoke_all($hook, $data);
+        $caps = ['create', 'view', 'release', 'pick', 'ship'];
+        $hasCapability = in_array($capability, $caps);
+        $data['has_capability'] = $hasCapability;
+        return $hasCapability;
     }
 
-    /**
-     * FA hook: db_postwrite — fires after ANY transaction is written.
-     * We trap ST_SALESORDER (sales order) to create reservations.
-     *
-     * @param object $cart Cart object with ->trans_type, ->line_items, ->order_no (read-only)
-     * @param int $trans_type Transaction type constant
-     *
-     * @since 1.0.0
-     */
-    function db_postwrite($cart, $trans_type)
+    public function respondToCapabilityRequest(&$data, $opts = null)
     {
-        if ($trans_type != ST_SALESORDER) {
-            return;
+        $request = isset($opts['request']) ? $opts['request'] : (isset($data['request']) ? $data['request'] : 'capabilities');
+        $data['request'] = $request;
+        $data['module'] = $this->module_name;
+
+        if (strpos($request, 'has:') === 0) {
+            $capability = substr($request, 4);
+            return $this->hasCapability($data, ['capability' => $capability]);
         }
 
-        $order_no = is_object($cart) ? $cart->order_no : 0;
-        if ($order_no <= 0) {
-            return;
+        switch ($request) {
+            case 'capabilities':
+                $data['capabilities'] = $this->getModuleCapabilities($data, $opts);
+                return $data['capabilities'];
+            default:
+                return null;
         }
-
-        $this->getHandler()->onSalesOrderCreated($cart);
     }
 
-    /**
-     * FA hook: db_prevoid — fires before ANY transaction is voided.
-     * We trap ST_SALESORDER to release reservations.
-     *
-     * @param int $trans_type Transaction type constant
-     * @param int $trans_no Transaction number
-     *
-     * @since 1.0.0
-     */
-    function db_prevoid($trans_type, $trans_no)
+    function install_access()
     {
-        if ($trans_type != ST_SALESORDER) {
-            return;
-        }
-
-        $this->getHandler()->onSalesOrderVoided($trans_no);
-    }
-
-    /**
-     * Get the sales order reservation handler (lazy load).
-     *
-     * @return \Ksfraser\FrontAccounting\StockReservations\SalesOrderReservationHandler
-     *
-     * @since 1.0.0
-     */
-    private function getHandler(): \Ksfraser\FrontAccounting\StockReservations\SalesOrderReservationHandler
-    {
-        static $handler = null;
-
-        if ($handler !== null) {
-            return $handler;
-        }
-
-        $db = new \ksfraser\CommonDb\Adapter\FaDbAdapter(TB_PREF);
-        $reservationRepo = new \Ksfraser\FrontAccounting\StockReservations\ReservationRepository($db);
-        $stockService = new \Ksfraser\FrontAccounting\StockReservations\FaStockServiceAdapter($reservationRepo);
-        $reservationService = new \Ksfraser\FrontAccounting\StockReservations\ReservationService($reservationRepo, $stockService);
-
-        $handler = new \Ksfraser\FrontAccounting\StockReservations\SalesOrderReservationHandler(
-            $reservationService,
-            $stockService
+        $security_sections[SS_ksf_FA_StockReservations] = _("Stock Reservations");
+        $security_areas['SA_ksf_FA_STOCKRESERVATIONS'] = array(
+            SS_ksf_FA_StockReservations | 1,
+            _("Manage Stock Reservations")
         );
-
-        return $handler;
+        $security_areas['SA_ksf_FA_STOCKRESERVATIONS_VIEW'] = array(
+            SS_ksf_FA_StockReservations | 2,
+            _("View Stock Reservations")
+        );
+        return array($security_areas, $security_sections);
     }
+
+    /**
+     * Broadcast stock_reservation_insufficient when insufficient stock detected.
+     *
+     * @param array &$data {
+     *     @var string $module
+     *     @var string $event
+     *     @var int $order_no
+     *     @var array $items List of ['item_code' => '', 'shortage' => float]
+     *     @var string $timestamp
+     * }
+     */
+    function stock_reservation_insufficient(array &$data)
+    {
+        hook_invoke_all('stock_reservation_insufficient', $data);
+    }
+}
