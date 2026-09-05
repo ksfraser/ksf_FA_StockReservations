@@ -113,8 +113,4 @@ class hooks_ksf_FA_StockReservations extends hooks
      *     @var string $timestamp
      * }
      */
-    function stock_reservation_insufficient(array &$data)
-    {
-        hook_invoke_all('stock_reservation_insufficient', $data);
-    }
 }
