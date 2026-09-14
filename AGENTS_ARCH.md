@@ -196,6 +196,17 @@ $data = [
 
 - `_init/config` file is **gzip-compressed** `Key: Value` lines (`Name:`, `Version:`,
   `Description:`), version like `2.4.3-<build>`.
+- **`_init/config` is shipped in the module source and committed** (siblings keep it
+  tracked, e.g. `ksf_FA_HRM` commit `chore(config): bump module version to 2.4.3-1`).
+  The `Version:` FA displays and gates at activation is the installed module's
+  `_init/config`; `admin/inst_module.php` refuses to activate when
+  `check_src_ext_version()` (`includes/packages.inc`) finds the extension's numeric
+  prefix below FA's `$src_version` (major.minor). Set `Version: 2.4.x-<build>` (e.g.
+  `2.4.3-1`) and keep the module's own release in a separate field (`Build: 1.1.0`).
+  Change it **in source** (`git add _init/config`) and let deployment + the FA
+  *Install/Activate Extensions* UI reinstall refresh the running copy — never
+  hand-edit the gzip on a live install, and never edit the version fields in
+  `installed_extensions.php`.
 - **The `Version:` in `_init/config` must match the major version of the FA
   platform** the module targets (e.g. `2.4.x` for FrontAccounting 2.4). FA uses
   this to gate module compatibility at install — a mismatched major (e.g. `3.x`
@@ -222,7 +233,78 @@ $data = [
 - Cross-module/owned classes live in a Packagist package, not a module dir.
   A module must never gate class availability on another module's activation.
 
-## 13. Ecosystem docs
+## 13. RBAC Architecture (ksf_FA_RBAC)
+
+### Design Document
+Full design: `ksf_FA_RBAC/ProjectDcs/RBAC_V2_DESIGN.md`
+
+### Overview
+RBAC v2 uses voter-based authorization inspired by Symfony Security, with:
+- **Zend RBAC** (`zendframework/zend-permissions-rbac`) for role/permission hierarchy
+- **Voter pattern** for CRUD authorization
+- **Dynamic assertions** for record-level access
+- **Field-level encryption** via `defuse/php-encryption`
+
+### Hooks API
+
+| Hook | Purpose | Returns |
+|------|---------|---------|
+| `authorize` | Check CRUD access | `true/false/null` |
+| `filterRecordList` | Filter list view records | Modified SQL |
+| `filterFields` | Restrict field visibility | Field array |
+| `encryptField` | Encrypt/decrypt values | Encrypted string |
+
+### Authorization Hook
+```php
+hook_invoke_all('ksf_FA_RBAC', 'authorize', [
+    'user_id'   => $user_id,
+    'action'    => 'view', // create, view, edit, delete, list, export
+    'module'    => 'customer',
+    'resource'  => $customer_obj, // optional for record-level
+    'assertion' => function($user_id, $resource) {
+        return $resource->isOwnedBy($user_id);
+    }
+]);
+// true = allowed, false = denied, null = abstain (let other voters decide)
+```
+
+### Decision Strategies
+- `affirmative`: grant if ANY voter allows
+- `consensus`: grant if majority allows
+- `unanimous`: grant if ALL allow
+
+### Module ACL Registry
+Each module declares permissions in `hooks.php` via `getModuleAcl()`:
+```php
+$data['customer'] = [
+    'create' => ['admin', 'manager'],
+    'view'   => ['admin', 'manager', 'salesman'],
+    'edit'   => ['admin', 'manager'],
+    'delete' => ['admin'],
+];
+```
+
+### Dependency Behavior
+| Module | Behavior |
+|--------|----------|
+| RBAC installed | Full voter-based authorization |
+| RBAC missing | All hooks return `null` (native FA permissions) |
+| CRM installed | Team-based access via `crm_company_contacts` |
+| CRM missing | Record-level uses native `salesman_code` |
+
+### Default Roles
+| Role | Description | Inherits |
+|------|-------------|----------|
+| `admin` | Full access | - |
+| `manager` | Business unit | `salesman` |
+| `salesman` | Sales rep | `clerk` |
+| `clerk` | Data entry | - |
+| `ar_clerk` | AR entry | `clerk` |
+| `ap_clerk` | AP entry | `clerk` |
+| `warehouse` | Warehouse | `clerk` |
+| `viewer` | Read-only | - |
+
+## 14. Ecosystem docs
 
 For the package/namespace/dependency map (which repo wraps which, monolith
 splits, trait inventory), see the shared ecosystem docs — `MODULE_DIRECTORY.md`,
