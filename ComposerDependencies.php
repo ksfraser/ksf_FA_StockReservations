@@ -2,12 +2,50 @@
 
 declare(strict_types=1);
 
-namespace ksfraser\FrontAccounting\Common\Utils;
+/**
+ * Composer bootstrap guard — per-module copy template.
+ *
+ * COPY THIS FILE to <module_root>/ComposerDependencies.php and REPLACE the
+ * `StockReservations` token in the namespace below with your module's name, e.g.
+ * for ksf_FA_HRM:
+ *
+ *     namespace ksfraser\FrontAccounting\HRM\Utils;
+ *
+ * Then call it at the VERY TOP of your hooks.php, before any other requires:
+ *
+ *     require_once __DIR__ . '/ComposerDependencies.php';
+ *     \ksfraser\FrontAccounting\HRM\Utils\ComposerDependencies::ensure(__DIR__);
+ *
+ * The guard is namespace-scoped and intentional:
+ *  - Each module that DOES rename StockReservations gets its own class in its own
+ *    namespace — copies can never collide, and the shared global constant is
+ *    NOT set (so a properly-renamed module never suppresses a sibling).
+ *  - If you FORGET to replace StockReservations, every unrenamed copy collapses onto
+ *    the same placeholder namespace `ksfraser\FrontAccounting\StockReservations\Utils`;
+ *    the `class_exists(__NAMESPACE__...)` + namespace-derived sentinel guard
+ *    then lets only the FIRST unrenamed copy to load declare the class — no
+ *    redeclaration fatal, no clobbering. The remainder short-circuit and their
+ *    hooks.php calls still resolve (the class takes $moduleDir per call).
+ *  - The legacy constant KSF_FA_COMMON_COMPOSER_DEPENDENCIES_DECLARED is only
+ *    defined when the copy lands on the Common\Utils namespace (i.e. an
+ *    unrenamed template that was never meant to ship outside the package).
+ *
+ * @since 1.0.11
+ */
 
-$ksfCommonComposerDependenciesAlreadyDeclared = class_exists(__NAMESPACE__ . '\ComposerDependencies', false);
+namespace ksfraser\FrontAccounting\StockReservations\Utils;
 
-if (!defined('KSF_FA_COMMON_COMPOSER_DEPENDENCIES_DECLARED') && !$ksfCommonComposerDependenciesAlreadyDeclared) {
-    define('KSF_FA_COMMON_COMPOSER_DEPENDENCIES_DECLARED', true);
+$ksfModuleComposerDepsNamespace = __NAMESPACE__;
+$ksfModuleComposerDepsClass = 'ComposerDependencies';
+$ksfModuleComposerDepsSentinel = 'KSF_FA_COMPOSER_DEPENDENCIES_' . md5($ksfModuleComposerDepsNamespace);
+$ksfModuleComposerDepsWasDeclared = class_exists($ksfModuleComposerDepsNamespace . '\\' . $ksfModuleComposerDepsClass, false);
+
+if (!defined($ksfModuleComposerDepsSentinel) && !$ksfModuleComposerDepsWasDeclared) {
+    define($ksfModuleComposerDepsSentinel, true);
+
+    if ($ksfModuleComposerDepsNamespace === 'ksfraser\FrontAccounting\Common\Utils' && !defined('KSF_FA_COMMON_COMPOSER_DEPENDENCIES_DECLARED')) {
+        define('KSF_FA_COMMON_COMPOSER_DEPENDENCIES_DECLARED', true);
+    }
 
     final class ComposerDependencies
     {

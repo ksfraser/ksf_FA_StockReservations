@@ -17,7 +17,7 @@ class hooks_ksf_FA_StockReservations extends hooks
     function install_extension($check_only=true)
     {
         if (!$check_only) {
-            \ksfraser\FrontAccounting\Common\Utils\ComposerDependencies::ensure(__DIR__);
+            \ksfraser\FrontAccounting\StockReservations\Utils\ComposerDependencies::ensure(__DIR__);
         }
         return true;
     }
