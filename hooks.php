@@ -116,7 +116,7 @@ class hooks_ksf_FA_StockReservations extends hooks
      * @param object $cart
      * @param int $trans_type
      */
-    function db_postwrite($cart, $trans_type)
+    function db_postwrite(&$cart, $trans_type)
     {
         if ($trans_type == ST_SALESORDER) {
             $this->handleSalesOrderCreated($cart);
